@@ -56,9 +56,6 @@ Library
   -- Packages needed in order to build this package.
   Build-depends:       base < 4.3
 
-  if impl(ghc)
-    Build-depends: primitive >= 0.2 && < 0.3
-
   
   -- Modules not exported by this package.
   -- Other-modules:       

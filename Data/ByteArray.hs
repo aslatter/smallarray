@@ -31,25 +31,27 @@ pointers when we can't - so your library can be portable.
 module Data.ByteArray
     ( ByteArray
     , MutableByteArray
-    , newByteArray
-    , newPinnedByteArray
+    , new
+    , newPinned
     , Elem(..)
-    , unsafeFreezeByteArray
-    , byteArrayContents
+    , unsafeFreeze
+    , asPtr
     ) where
 
 
 #if defined(USING_GHC)
--- for GHC we re-use the work done in the primitve
--- package, specialised to Word8/IO
-import qualified Data.Primitive as P
-import qualified Control.Monad.Primitive as P
-
+-- for GHC we use GHC.Prim byte arrays
 import GHC.Exts
 import GHC.IOBase (IO(..))
+import GHC.ST (ST(..))
+
+import GHC.Int (Int8(..), Int16(..), Int32(..), Int64(..))
+import GHC.Word (Word8(..), Word16(..), Word32(..), Word64(..))
+
+#include "MachDeps.h"
 
 #else
-import Foreign
+import Foreign hiding (new)
 #endif
 
 import Data.Word
@@ -58,51 +60,81 @@ import Data.Int
 import Control.Monad.ST
 
 #if defined(USING_GHC)
-newtype ByteArray = ByteArray {unArray :: P.ByteArray }
-newtype MutableByteArray s = MutableByteArray {unMArray :: P.MutableByteArray s }
+data ByteArray = ByteArray {unArray :: ByteArray# }
+data MutableByteArray s = MutableByteArray {unMArray :: MutableByteArray# s}
 #else
 -- fallback to FFI foreign pointers
 newtype ByteArray = ByteArray (ForeignPtr Word8)
 newtype MutableByteArray s = MutableByteArray (ForeignPtr Word8)
 #endif
 
-newByteArray :: Int -> ST s (MutableByteArray s)
-newPinnedByteArray :: Int -> ST s (MutableByteArray s)
-unsafeFreezeByteArray :: MutableByteArray s -> ST s ByteArray
+-- | Allocate a new array. The size is specified in bytes.
+new :: Int -> ST s (MutableByteArray s)
+-- | Allocate a new array in a memory region which will not
+-- be moved. The size is specified in bytes.
+newPinned :: Int -> ST s (MutableByteArray s)
+
+-- | Convert a MutableByteArray to a ByteArray. You should
+-- not modify the source array after calling this.
+unsafeFreeze :: MutableByteArray s -> ST s ByteArray
 
 class Elem a where
-    readByteArray  :: MutableByteArray s -> Int -> ST s a
-    writeByteArray :: MutableByteArray s -> Int -> a -> ST s ()
-    indexByteArray :: ByteArray -> Int -> a
-    elemSize       :: a -> Int
+    read     :: MutableByteArray s -> Int -> ST s a
+    write    :: MutableByteArray s -> Int -> a -> ST s ()
+    index    :: ByteArray -> Int -> a
 
--- | Only for use with pinned arrays! Otherwise very unsafe.
-byteArrayContents :: ByteArray -> (Ptr a -> IO b) -> IO b
+    -- | The size of an element in bytes
+    elemSize :: a -> Int
+
+-- | Only for use with pinned arrays.
+asPtr :: ByteArray -> (Ptr a -> IO b) -> IO b
 
 #if defined(USING_GHC)
 
-newByteArray n = MutableByteArray `fmap` P.newByteArray n
-newPinnedByteArray n = MutableByteArray `fmap` P.newPinnedByteArray n
-unsafeFreezeByteArray (MutableByteArray ary) = ByteArray `fmap` P.unsafeFreezeByteArray ary
+new (I# n#)
+    = ST $ \s -> case newByteArray# n# s of
+                   (# s, ary #) -> (# s, MutableByteArray ary #)
+newPinned (I# n#)
+    = ST $ \s -> case newPinnedByteArray# n# s of
+                   (# s, ary #) -> (# s, MutableByteArray ary #)
 
-byteArrayContents (ByteArray ary) k
-    = case P.byteArrayContents ary of
-        P.Addr addr# -> do
+unsafeFreeze (MutableByteArray mary)
+    = ST $ \s -> case unsafeFreezeByteArray# mary s of
+                   (# s, ary #) -> (# s, ByteArray ary #)
+
+asPtr a@(ByteArray ary) k
+    = case byteArrayContents# ary of
+        addr# -> do
           x <- k $ Ptr addr#
-          touch ary
+          touch a
           return x
 
 touch :: a -> IO ()
 touch x = IO $ \s-> case touch# x s of s' -> (# s', () #)
 
-#define deriveElem(Typ) \
+#define deriveElem(Typ, Ct, rd, wrt, ix, sz) \
 instance Elem Typ where { \
-    readByteArray ary n = P.readByteArray (unMArray ary) n \
-;   writeByteArray ary n b = P.writeByteArray (unMArray ary) n b \
-;   indexByteArray ary n = P.indexByteArray (unArray ary) n \
-;   elemSize x = I# (P.sizeOf# x) \
+    read ary (I# n) = ST (\s -> case rd (unMArray ary) n s of \
+                                   {(# s, b #) -> (# s, Ct b #)}) \
+;   write ary (I# n) (Ct b) = ST (\s -> (# wrt (unMArray ary) n b s, () #)) \
+;   index ary (I# n) = Ct (ix (unArray ary) n) \
+;   elemSize _ = sz \
 }
 
+
+deriveElem(Word, W#, readWordArray#, writeWordArray#, indexWordArray#, SIZEOF_HSWORD)
+deriveElem(Word8, W8#, readWord8Array#, writeWord8Array#, indexWord8Array#, SIZEOF_WORD8)
+deriveElem(Word16, W16#, readWord16Array#, writeWord16Array#, indexWord16Array#, SIZEOF_WORD16)
+deriveElem(Word32, W32#, readWord32Array#, writeWord32Array#, indexWord32Array#, SIZEOF_WORD32)
+deriveElem(Word64, W64#, readWord64Array#, writeWord64Array#, indexWord64Array#, SIZEOF_WORD64)
+deriveElem(Int, I#, readIntArray#, writeIntArray#, indexIntArray#, SIZEOF_HSINT)
+deriveElem(Int8, I8#, readInt8Array#, writeInt8Array#, indexInt8Array#, SIZEOF_INT8)
+deriveElem(Int16, I16#, readInt16Array#, writeInt16Array#, indexInt16Array#, SIZEOF_INT16)
+deriveElem(Int32, I32#, readInt32Array#, writeInt32Array#, indexInt32Array#, SIZEOF_INT32)
+deriveElem(Int64, I64#, readInt64Array#, writeInt64Array#, indexInt64Array#, SIZEOF_INT64)
+deriveElem(Float, F#, readFloatArray#, writeFloatArray#, indexFloatArray#, SIZEOF_HSFLOAT)
+deriveElem(Double, D#, readDoubleArray#, writeDoubleArray#, indexDoubleArray#, SIZEOF_HSDOUBLE)
+deriveElem(Char, C#, readWideCharArray#, writeWideCharArray#, indexWideCharArray#, SIZEOF_HSCHAR)
 
 #else
 
@@ -112,26 +144,23 @@ withArrayPtr  :: ByteArray -> (Ptr a -> IO b) -> IO b
 withMArrayPtr (MutableByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
 withArrayPtr (ByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
 
-newByteArray n = unsafeIOToST $ MutableByteArray `fmap` mallocForeignPtrBytes n
-newPinnedByteArray = newByteArray -- FFI arrays already pinned
+new n = unsafeIOToST $ MutableByteArray `fmap` mallocForeignPtrBytes n
+newPinned = new -- FFI arrays already pinned
 
-unsafeFreezeByteArray (MutableByteArray fptr)
+unsafeFreeze (MutableByteArray fptr)
     = return . ByteArray $ fptr
 
-byteArrayContents = withArrayPtr
+asPtr = withArrayPtr
 
 #define deriveElem(Typ) \
 instance Elem Typ where { \
-    readByteArray ary ndx \
+    read ary ndx \
         = unsafeIOToST $ withMArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
-;   writeByteArray ary ndx word \
+;   write ary ndx word \
         = unsafeIOToST $ withMArrayPtr ary $ \ptr -> pokeElemOff ptr ndx word \
-;   indexByteArray ary ndx = unsafePerformIO $ withArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
+;   index ary ndx = unsafePerformIO $ withArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
 ;   elemSize = sizeOf \
 }
-
-
-#endif
 
 deriveElem(Word)
 deriveElem(Word8)
@@ -146,3 +175,5 @@ deriveElem(Int64)
 deriveElem(Float)
 deriveElem(Double)
 deriveElem(Char)
+
+#endif
