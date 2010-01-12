@@ -1,6 +1,14 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE MagicHash, UnboxedTuples #-}
 
-{-# LANGUAGE MagicHash, MultiParamTypeClasses #-}
+#ifndef TESTING_FFI
+#if defined(__GLASGOW_HASKELL__)
+#define USING_GHC
+#endif
+#endif
+
+
+{-# LANGUAGE MagicHash #-}
 
 {-|
 
@@ -33,9 +41,11 @@ module Data.ByteArray
     ) where
 
 #ifndef TESTING_FFI
+
 #if defined(__GLASGOW_HASKELL__)
 #define USING_GHC
 #endif
+
 #endif
 
 #if defined(USING_GHC)
@@ -45,6 +55,7 @@ import qualified Data.Primitive as P
 import qualified Control.Monad.Primitive as P
 
 import GHC.Exts
+import GHC.IOBase (IO(..))
 
 #else
 import Foreign
@@ -53,32 +64,24 @@ import Foreign
 import Data.Word
 import Data.Int
 
-import Control.Monad.ST
-
-class Elem a where
-    indexByteArray :: ByteArray -> Int -> a
-    elemSize       :: a -> Int
-
-class MByteArray a m where
-    newByteArray :: Int -> m a
-    newPinnedByteArray :: Int -> m a
-    unsafeFreezeByteArray :: a -> m ByteArray
-
-class (Elem e, MByteArray a m) => MElem a m e where
-    readByteArray  :: a -> Int -> m e
-    writeByteArray :: a -> Int -> e -> m ()
-
 #if defined(USING_GHC)
 newtype ByteArray = ByteArray {unArray :: P.ByteArray }
-newtype IOByteArray = IOByteArray {unIOArray :: P.MutableByteArray RealWorld }
-newtype STByteArray s = STByteArray {unSTArray :: P.MutableByteArray s }
+newtype MutableByteArray = MutableByteArray {unMArray :: P.MutableByteArray P.RealWorld }
 #else
 -- fallback to FFI foreign pointers
 newtype ByteArray = ByteArray (ForeignPtr Word8)
-newtype IOByteArray = IOByteArray (ForeignPtr Word8)
-newtype STByteArray s = STByteArray (ForeignPtr Word8)
+newtype MutableByteArray = MutableByteArray (ForeignPtr Word8)
 #endif
 
+newByteArray :: Int -> IO MutableByteArray
+newPinnedByteArray :: Int -> IO MutableByteArray
+unsafeFreezeByteArray :: MutableByteArray -> IO ByteArray
+
+class Elem a where
+    readByteArray  :: MutableByteArray -> Int -> IO a
+    writeByteArray :: MutableByteArray -> Int -> a -> IO ()
+    indexByteArray :: ByteArray -> Int -> a
+    elemSize       :: a -> Int
 
 -- | Only for use with pinned arrays! Otherwise very unsafe.
 byteArrayContents :: ByteArray -> (Ptr a -> IO b) -> IO b
@@ -97,7 +100,13 @@ instance MByteArray IOByteArray IO where
 
 byteArrayContents (ByteArray ary) k
     = case P.byteArrayContents ary of
-        P.Addr addr# -> k $ Ptr addr#
+        P.Addr addr# -> do
+          x <- k $ Ptr addr#
+          touch ary
+          return x
+
+touch :: a -> IO ()
+touch x = IO $ \s-> case touch# x s of s' -> (# s', () #)
 
 #define deriveElem(Typ) \
 instance Elem Typ where { \
@@ -119,32 +128,24 @@ instance MElem IOByteArray IO Type where { \
 
 #else
 
-withSTArrayPtr :: STByteArray s -> (Ptr a -> IO b) -> IO b
-withIOArrayPtr :: IOByteArray -> (Ptr a -> IO b) -> IO b
+withMArrayPtr :: MutableByteArray -> (Ptr a -> IO b) -> IO b
 withArrayPtr  :: ByteArray -> (Ptr a -> IO b) -> IO b
 
 withSTArrayPtr (STByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
 withIOArrayPtr (IOByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
 withArrayPtr (ByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
 
-instance MByteArray (STByteArray s) (ST s) where
-    newByteArray n = STByteArray `fmap` unsafeIOToST (mallocForeignPtrBytes n)
-    newPinnedByteArray = newByteArray -- FFI arrays already pinned
-    unsafeFreezeByteArray (STByteArray fptr)
-        = return . ByteArray $ fptr
-
-instance MByteArray IOByteArray IO where
-    newByteArray n = IOByteArray `fmap` mallocForeignPtrBytes n
-    newPinnedByteArray = newByteArray -- FFI arrays already pinned
-    unsafeFreezeByteArray (IOByteArray fptr)
-        = return . ByteArray $ fptr
+newByteArray n = MutableByteArray `fmap` mallocForeignPtrBytes n
+newPinnedByteArray = newByteArray -- FFI arrays already pinned
 
 
 byteArrayContents = withArrayPtr
 
 #define deriveElem(Typ) \
 instance Elem Typ where { \
-    indexByteArray ary ndx = unsafePerformIO $ withArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
+    readByteArray ary ndx = withMArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
+;   writeByteArray ary ndx word = withMArrayPtr ary $ \ptr -> pokeElemOff ptr ndx word \
+;   indexByteArray ary ndx = unsafePerformIO $ withArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
 ;   elemSize = sizeOf \
 }
 
