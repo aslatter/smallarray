@@ -52,13 +52,15 @@ Cabal-version:       >=1.2
 Library
   -- Modules exported by the library.
   Exposed-modules:     Data.ByteArray
+                       Data.SmallArray
+                       Data.SmallArray.Unsafe  
   
   -- Packages needed in order to build this package.
   Build-depends:       base < 4.3
 
   
   -- Modules not exported by this package.
-  -- Other-modules:       
+  Other-modules:       Data.SmallArray.Internal
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
