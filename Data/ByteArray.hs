@@ -8,7 +8,6 @@
 #endif
 
 
-{-# LANGUAGE MagicHash #-}
 
 {-|
 
@@ -29,24 +28,16 @@ pointers when we can't - so your library can be portable.
 
 -}
 
-
 module Data.ByteArray
     ( ByteArray
-    , STByteArray
-    , IOByteArray
+    , MutableByteArray
+    , newByteArray
+    , newPinnedByteArray
     , Elem(..)
-    , MByteArray(..)
-    , MElem(..)
+    , unsafeFreezeByteArray
     , byteArrayContents
     ) where
 
-#ifndef TESTING_FFI
-
-#if defined(__GLASGOW_HASKELL__)
-#define USING_GHC
-#endif
-
-#endif
 
 #if defined(USING_GHC)
 -- for GHC we re-use the work done in the primitve
@@ -64,22 +55,24 @@ import Foreign
 import Data.Word
 import Data.Int
 
+import Control.Monad.ST
+
 #if defined(USING_GHC)
 newtype ByteArray = ByteArray {unArray :: P.ByteArray }
-newtype MutableByteArray = MutableByteArray {unMArray :: P.MutableByteArray P.RealWorld }
+newtype MutableByteArray s = MutableByteArray {unMArray :: P.MutableByteArray s }
 #else
 -- fallback to FFI foreign pointers
 newtype ByteArray = ByteArray (ForeignPtr Word8)
-newtype MutableByteArray = MutableByteArray (ForeignPtr Word8)
+newtype MutableByteArray s = MutableByteArray (ForeignPtr Word8)
 #endif
 
-newByteArray :: Int -> IO MutableByteArray
-newPinnedByteArray :: Int -> IO MutableByteArray
-unsafeFreezeByteArray :: MutableByteArray -> IO ByteArray
+newByteArray :: Int -> ST s (MutableByteArray s)
+newPinnedByteArray :: Int -> ST s (MutableByteArray s)
+unsafeFreezeByteArray :: MutableByteArray s -> ST s ByteArray
 
 class Elem a where
-    readByteArray  :: MutableByteArray -> Int -> IO a
-    writeByteArray :: MutableByteArray -> Int -> a -> IO ()
+    readByteArray  :: MutableByteArray s -> Int -> ST s a
+    writeByteArray :: MutableByteArray s -> Int -> a -> ST s ()
     indexByteArray :: ByteArray -> Int -> a
     elemSize       :: a -> Int
 
@@ -88,15 +81,9 @@ byteArrayContents :: ByteArray -> (Ptr a -> IO b) -> IO b
 
 #if defined(USING_GHC)
 
-instance MByteArray (STByteArray s) (ST s) where
-    newByteArray n = STByteArray `fmap` P.newByteArray n
-    newPinnedByteArray n = STByteArray `fmap` P.newPinnedByteArray n
-    unsafeFreezeByteArray (STByteArray a) = ByteArray `fmap` P.unsafeFreezeByteArray a
-
-instance MByteArray IOByteArray IO where
-    newByteArray n = IOByteArray `fmap` P.newByteArray n
-    newPinnedByteArray n = IOByteArray `fmap` P.newPinnedByteArray n
-    unsafeFreezeByteArray (IOByteArray a) = ByteArray `fmap` P.unsafeFreezeByteArray a
+newByteArray n = MutableByteArray `fmap` P.newByteArray n
+newPinnedByteArray n = MutableByteArray `fmap` P.newPinnedByteArray n
+unsafeFreezeByteArray (MutableByteArray ary) = ByteArray `fmap` P.unsafeFreezeByteArray ary
 
 byteArrayContents (ByteArray ary) k
     = case P.byteArrayContents ary of
@@ -110,57 +97,39 @@ touch x = IO $ \s-> case touch# x s of s' -> (# s', () #)
 
 #define deriveElem(Typ) \
 instance Elem Typ where { \
-    indexByteArray ary n = P.indexByteArray (unArray ary) n \
+    readByteArray ary n = P.readByteArray (unMArray ary) n \
+;   writeByteArray ary n b = P.writeByteArray (unMArray ary) n b \
+;   indexByteArray ary n = P.indexByteArray (unArray ary) n \
 ;   elemSize x = I# (P.sizeOf# x) \
 }
 
-#define deriveElemST(Type) \
-instance MElem (STByteArray s) (ST s) Type where { \
-    readByteArray ary n = P.readByteArray (unSTArray ary) n \
-;   writeByteArray ary n b = P.writeByteArray (unSTArray ary) n b \
-}
-
-#define deriveElemIO(Type) \
-instance MElem IOByteArray IO Type where { \
-    readByteArray ary n = P.readByteArray (unIOArray ary) n \
-;   writeByteArray ary n b = P.writeByteArray (unIOArray ary) n b \
-}
 
 #else
 
-withMArrayPtr :: MutableByteArray -> (Ptr a -> IO b) -> IO b
+withMArrayPtr :: MutableByteArray s -> (Ptr a -> IO b) -> IO b
 withArrayPtr  :: ByteArray -> (Ptr a -> IO b) -> IO b
 
-withSTArrayPtr (STByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
-withIOArrayPtr (IOByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
+withMArrayPtr (MutableByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
 withArrayPtr (ByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
 
-newByteArray n = MutableByteArray `fmap` mallocForeignPtrBytes n
+newByteArray n = unsafeIOToST $ MutableByteArray `fmap` mallocForeignPtrBytes n
 newPinnedByteArray = newByteArray -- FFI arrays already pinned
 
+unsafeFreezeByteArray (MutableByteArray fptr)
+    = return . ByteArray $ fptr
 
 byteArrayContents = withArrayPtr
 
 #define deriveElem(Typ) \
 instance Elem Typ where { \
-    readByteArray ary ndx = withMArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
-;   writeByteArray ary ndx word = withMArrayPtr ary $ \ptr -> pokeElemOff ptr ndx word \
+    readByteArray ary ndx \
+        = unsafeIOToST $ withMArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
+;   writeByteArray ary ndx word \
+        = unsafeIOToST $ withMArrayPtr ary $ \ptr -> pokeElemOff ptr ndx word \
 ;   indexByteArray ary ndx = unsafePerformIO $ withArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
 ;   elemSize = sizeOf \
 }
 
-#define deriveElemST(Typ) \
-instance MElem (STByteArray s) (ST s) Typ where { \
-    readByteArray ary ndx = unsafeIOToST $ withSTArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
-;   writeByteArray ary ndx word \
-     = unsafeIOToST $ withSTArrayPtr ary $ \ptr -> pokeElemOff ptr ndx word \
-}
-
-#define deriveElemIO(Typ) \
-instance MElem IOByteArray IO Typ where { \
-    readByteArray ary ndx = withIOArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
-;   writeByteArray ary ndx word = withIOArrayPtr ary $ \ptr -> pokeElemOff ptr ndx word \
-}
 
 #endif
 
@@ -177,31 +146,3 @@ deriveElem(Int64)
 deriveElem(Float)
 deriveElem(Double)
 deriveElem(Char)
-
-deriveElemST(Word)
-deriveElemST(Word8)
-deriveElemST(Word16)
-deriveElemST(Word32)
-deriveElemST(Word64)
-deriveElemST(Int)
-deriveElemST(Int8)
-deriveElemST(Int16)
-deriveElemST(Int32)
-deriveElemST(Int64)
-deriveElemST(Float)
-deriveElemST(Double)
-deriveElemST(Char)
-
-deriveElemIO(Word)
-deriveElemIO(Word8)
-deriveElemIO(Word16)
-deriveElemIO(Word32)
-deriveElemIO(Word64)
-deriveElemIO(Int)
-deriveElemIO(Int8)
-deriveElemIO(Int16)
-deriveElemIO(Int32)
-deriveElemIO(Int64)
-deriveElemIO(Float)
-deriveElemIO(Double)
-deriveElemIO(Char)
