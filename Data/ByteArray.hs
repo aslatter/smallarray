@@ -33,7 +33,7 @@ module Data.ByteArray
     , MutableByteArray
     , new
     , newPinned
-    , Elem(..)
+    , Elt(..)
     , unsafeFreeze
     , asPtr
     ) where
@@ -75,7 +75,7 @@ newPinned :: Int -> ST s (MutableByteArray s)
 -- not modify the source array after calling this.
 unsafeFreeze :: MutableByteArray s -> ST s ByteArray
 
-class Elem a where
+class Elt a where
     read     :: MutableByteArray s -> Int -> ST s a
     write    :: MutableByteArray s -> Int -> a -> ST s ()
     index    :: ByteArray -> Int -> a
@@ -109,8 +109,8 @@ asPtr a@(ByteArray ary) k
 touch :: a -> IO ()
 touch x = IO $ \s-> case touch# x s of s' -> (# s', () #)
 
-#define deriveElem(Typ, Ct, rd, wrt, ix, sz) \
-instance Elem Typ where { \
+#define deriveElt(Typ, Ct, rd, wrt, ix, sz) \
+instance Elt Typ where { \
     read ary (I# n) = ST (\s -> case rd (unMArray ary) n s of \
                                    {(# s', b #) -> (# s', Ct b #)}) \
 ;   write ary (I# n) (Ct b) = ST (\s -> (# wrt (unMArray ary) n b s, () #)) \
@@ -119,19 +119,19 @@ instance Elem Typ where { \
 }
 
 
-deriveElem(Word, W#, readWordArray#, writeWordArray#, indexWordArray#, SIZEOF_HSWORD)
-deriveElem(Word8, W8#, readWord8Array#, writeWord8Array#, indexWord8Array#, SIZEOF_WORD8)
-deriveElem(Word16, W16#, readWord16Array#, writeWord16Array#, indexWord16Array#, SIZEOF_WORD16)
-deriveElem(Word32, W32#, readWord32Array#, writeWord32Array#, indexWord32Array#, SIZEOF_WORD32)
-deriveElem(Word64, W64#, readWord64Array#, writeWord64Array#, indexWord64Array#, SIZEOF_WORD64)
-deriveElem(Int, I#, readIntArray#, writeIntArray#, indexIntArray#, SIZEOF_HSINT)
-deriveElem(Int8, I8#, readInt8Array#, writeInt8Array#, indexInt8Array#, SIZEOF_INT8)
-deriveElem(Int16, I16#, readInt16Array#, writeInt16Array#, indexInt16Array#, SIZEOF_INT16)
-deriveElem(Int32, I32#, readInt32Array#, writeInt32Array#, indexInt32Array#, SIZEOF_INT32)
-deriveElem(Int64, I64#, readInt64Array#, writeInt64Array#, indexInt64Array#, SIZEOF_INT64)
-deriveElem(Float, F#, readFloatArray#, writeFloatArray#, indexFloatArray#, SIZEOF_HSFLOAT)
-deriveElem(Double, D#, readDoubleArray#, writeDoubleArray#, indexDoubleArray#, SIZEOF_HSDOUBLE)
-deriveElem(Char, C#, readWideCharArray#, writeWideCharArray#, indexWideCharArray#, SIZEOF_HSCHAR)
+deriveElt(Word, W#, readWordArray#, writeWordArray#, indexWordArray#, SIZEOF_HSWORD)
+deriveElt(Word8, W8#, readWord8Array#, writeWord8Array#, indexWord8Array#, SIZEOF_WORD8)
+deriveElt(Word16, W16#, readWord16Array#, writeWord16Array#, indexWord16Array#, SIZEOF_WORD16)
+deriveElt(Word32, W32#, readWord32Array#, writeWord32Array#, indexWord32Array#, SIZEOF_WORD32)
+deriveElt(Word64, W64#, readWord64Array#, writeWord64Array#, indexWord64Array#, SIZEOF_WORD64)
+deriveElt(Int, I#, readIntArray#, writeIntArray#, indexIntArray#, SIZEOF_HSINT)
+deriveElt(Int8, I8#, readInt8Array#, writeInt8Array#, indexInt8Array#, SIZEOF_INT8)
+deriveElt(Int16, I16#, readInt16Array#, writeInt16Array#, indexInt16Array#, SIZEOF_INT16)
+deriveElt(Int32, I32#, readInt32Array#, writeInt32Array#, indexInt32Array#, SIZEOF_INT32)
+deriveElt(Int64, I64#, readInt64Array#, writeInt64Array#, indexInt64Array#, SIZEOF_INT64)
+deriveElt(Float, F#, readFloatArray#, writeFloatArray#, indexFloatArray#, SIZEOF_HSFLOAT)
+deriveElt(Double, D#, readDoubleArray#, writeDoubleArray#, indexDoubleArray#, SIZEOF_HSDOUBLE)
+deriveElt(Char, C#, readWideCharArray#, writeWideCharArray#, indexWideCharArray#, SIZEOF_HSCHAR)
 
 #else
 
@@ -149,8 +149,8 @@ unsafeFreeze (MutableByteArray fptr)
 
 asPtr = withArrayPtr
 
-#define deriveElem(Typ) \
-instance Elem Typ where { \
+#define deriveElt(Typ) \
+instance Elt Typ where { \
     read ary ndx \
         = unsafeIOToST $ withMArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
 ;   write ary ndx word \
@@ -159,18 +159,18 @@ instance Elem Typ where { \
 ;   elemSize = sizeOf \
 }
 
-deriveElem(Word)
-deriveElem(Word8)
-deriveElem(Word16)
-deriveElem(Word32)
-deriveElem(Word64)
-deriveElem(Int)
-deriveElem(Int8)
-deriveElem(Int16)
-deriveElem(Int32)
-deriveElem(Int64)
-deriveElem(Float)
-deriveElem(Double)
-deriveElem(Char)
+deriveElt(Word)
+deriveElt(Word8)
+deriveElt(Word16)
+deriveElt(Word32)
+deriveElt(Word64)
+deriveElt(Int)
+deriveElt(Int8)
+deriveElt(Int16)
+deriveElt(Int32)
+deriveElt(Int64)
+deriveElt(Float)
+deriveElt(Double)
+deriveElt(Char)
 
 #endif
