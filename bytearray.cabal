@@ -10,7 +10,7 @@ Name:                bytearray
 Version:             0.1
 
 -- A short (one-line) description of the package.
-Synopsis:            low-level unboxed array of bytes
+Synopsis:            low-level unboxed arrays
 
 -- A longer description of the package.
 -- Description:         
@@ -58,10 +58,12 @@ Library
   -- Packages needed in order to build this package.
   Build-depends:       base < 4.3
 
-  
   -- Modules not exported by this package.
   Other-modules:       Data.SmallArray.Internal
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
+
+  ghc-options: -Wall -O2
+  
   

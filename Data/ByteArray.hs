@@ -42,7 +42,7 @@ module Data.ByteArray
 #if defined(USING_GHC)
 -- for GHC we use GHC.Prim byte arrays
 import GHC.Exts
-import GHC.IOBase (IO(..))
+import GHC.IO (IO(..))
 import GHC.ST (ST(..))
 
 import GHC.Int (Int8(..), Int16(..), Int32(..), Int64(..))
@@ -53,9 +53,6 @@ import GHC.Word (Word8(..), Word16(..), Word32(..), Word64(..))
 #else
 import Foreign hiding (new)
 #endif
-
-import Data.Word
-import Data.Int
 
 import Control.Monad.ST
 
@@ -93,14 +90,14 @@ asPtr :: ByteArray -> (Ptr a -> IO b) -> IO b
 
 new (I# n#)
     = ST $ \s -> case newByteArray# n# s of
-                   (# s, ary #) -> (# s, MutableByteArray ary #)
+                   (# s', ary #) -> (# s', MutableByteArray ary #)
 newPinned (I# n#)
     = ST $ \s -> case newPinnedByteArray# n# s of
-                   (# s, ary #) -> (# s, MutableByteArray ary #)
+                   (# s', ary #) -> (# s', MutableByteArray ary #)
 
 unsafeFreeze (MutableByteArray mary)
     = ST $ \s -> case unsafeFreezeByteArray# mary s of
-                   (# s, ary #) -> (# s, ByteArray ary #)
+                   (# s', ary #) -> (# s', ByteArray ary #)
 
 asPtr a@(ByteArray ary) k
     = case byteArrayContents# ary of
@@ -115,7 +112,7 @@ touch x = IO $ \s-> case touch# x s of s' -> (# s', () #)
 #define deriveElem(Typ, Ct, rd, wrt, ix, sz) \
 instance Elem Typ where { \
     read ary (I# n) = ST (\s -> case rd (unMArray ary) n s of \
-                                   {(# s, b #) -> (# s, Ct b #)}) \
+                                   {(# s', b #) -> (# s', Ct b #)}) \
 ;   write ary (I# n) (Ct b) = ST (\s -> (# wrt (unMArray ary) n b s, () #)) \
 ;   index ary (I# n) = Ct (ix (unArray ary) n) \
 ;   elemSize _ = sz \

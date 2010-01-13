@@ -34,9 +34,9 @@ instance IArray (MArray s a) where
     length (M n _) = n
 
 unsafeNew :: Elt e => Int -> ST s (MArray s e)
-unsafeNew n = new undefined
-   where new :: Elt e => e -> ST s (MArray s e)
-         new e = M n `fmap` B.new (bytesInArray n e)
+unsafeNew n = f undefined
+   where f :: Elt e => e -> ST s (MArray s e)
+         f e = M n `fmap` B.new (bytesInArray n e)
 
 new :: Elt e => Int -> e -> ST s (MArray s e)
 new n e = do
