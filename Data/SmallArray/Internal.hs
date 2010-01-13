@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE Rank2Types #-}
 
-module Data.SmallArray.Internal
+module Data.SmallArray.Internal where
 
 import Prelude hiding (length)
 import qualified Prelude
