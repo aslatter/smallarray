@@ -56,24 +56,33 @@ import Foreign hiding (new)
 
 import Control.Monad.ST
 
+import Control.DeepSeq
+
 #if defined(USING_GHC)
-data ByteArray = ByteArray {unArray :: ByteArray# }
-data MutableByteArray s = MutableByteArray {unMArray :: MutableByteArray# s}
+data ByteArray = ByteArray {unArray :: !ByteArray# }
+data MutableByteArray s = MutableByteArray {unMArray :: !(MutableByteArray# s)}
 #else
 -- fallback to FFI foreign pointers
 newtype ByteArray = ByteArray (ForeignPtr Word8)
 newtype MutableByteArray s = MutableByteArray (ForeignPtr Word8)
 #endif
 
+instance NFData ByteArray where
+instance NFData (MutableByteArray s) where
+
 -- | Allocate a new array. The size is specified in bytes.
 new :: Int -> ST s (MutableByteArray s)
+{-# INLINE new #-}
+
 -- | Allocate a new array in a memory region which will not
 -- be moved. The size is specified in bytes.
 newPinned :: Int -> ST s (MutableByteArray s)
+{-# INLINE newPinned #-}
 
 -- | Convert a MutableByteArray to a ByteArray. You should
 -- not modify the source array after calling this.
 unsafeFreeze :: MutableByteArray s -> ST s ByteArray
+{-# INLINE unsafeFreeze #-}
 
 class Elt a where
     read     :: MutableByteArray s -> Int -> ST s a
@@ -113,9 +122,13 @@ touch x = IO $ \s-> case touch# x s of s' -> (# s', () #)
 instance Elt Typ where { \
     read ary (I# n) = ST (\s -> case rd (unMArray ary) n s of \
                                    {(# s', b #) -> (# s', Ct b #)}) \
+;   {-# INLINE read #-} \
 ;   write ary (I# n) (Ct b) = ST (\s -> (# wrt (unMArray ary) n b s, () #)) \
+;   {-# INLINE write #-} \
 ;   index ary (I# n) = Ct (ix (unArray ary) n) \
+;   {-# INLINE index #-} \
 ;   elemSize _ = sz \
+;   {-# INLINE elemSize #-} \
 }
 
 
