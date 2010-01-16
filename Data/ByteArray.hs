@@ -42,7 +42,11 @@ module Data.ByteArray
 #if defined(USING_GHC)
 -- for GHC we use GHC.Prim byte arrays
 import GHC.Exts
+#if __GLASGOW_HASKELL__ > 610
 import GHC.IO (IO(..))
+#else
+import GHC.IOBase (IO(..))
+#endif
 import GHC.ST (ST(..))
 
 import GHC.Int (Int8(..), Int16(..), Int32(..), Int64(..))
