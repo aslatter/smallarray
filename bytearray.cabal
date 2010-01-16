@@ -7,7 +7,7 @@ Name:                bytearray
 -- The package version. See the Haskell package versioning policy
 -- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
 -- standards guiding when and how versions should be incremented.
-Version:             0.1
+Version:             0.0.1
 
 -- A short (one-line) description of the package.
 Synopsis:            low-level unboxed arrays
@@ -67,15 +67,17 @@ Library
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
 
-  ghc-options: -Wall -O2
+  ghc-options: -Wall -funbox-strict-fields -O2
   
 Executable bench-bytearray
   main-is: Benchmark.hs
   hs-source-dirs: tests .
-  ghc-options: -Wall
+  ghc-options: -Wall -funbox-strict-fields -O2
 
   If flag(test)
     Buildable: True
     Build-depends:     base < 4.3, deepseq >= 1.1 && < 1.2,
                        bytestring, criterion >= 0.4 && < 0.5,
                        array >= 0.2 && < 0.4, storablevector >= 0.2 && < 0.3
+  Else
+    Buildable: False
