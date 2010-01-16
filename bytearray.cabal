@@ -78,4 +78,4 @@ Executable bench-bytearray
     Buildable: True
     Build-depends:     base < 4.3, deepseq >= 1.1 && < 1.2,
                        bytestring, criterion >= 0.4 && < 0.5,
-                       array >= 0.3 && < 0.4, storablevector >= 0.2 && < 0.3
+                       array >= 0.2 && < 0.4, storablevector >= 0.2 && < 0.3
