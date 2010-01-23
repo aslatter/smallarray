@@ -85,9 +85,11 @@ new n e = do
 
 unsafeFreeze :: MArray s e -> ST s (Array e)
 unsafeFreeze (M n marr) = A n `fmap` B.unsafeFreeze marr 
+{-# INLINE unsafeFreeze #-}
 
 run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
+{-# INLINE run #-}
 
 run2 :: (forall s . ST s (MArray s e, a)) -> (Array e, a)
 run2 act = runST $ do
