@@ -48,10 +48,6 @@ Build-type:          Simple
 -- Constraint on the version of Cabal needed to build this package.
 Cabal-version:       >=1.2
 
-Flag test
-  Description: Build unit test and benchmark programs.
-  Default:     False
-
 Library
   -- Modules exported by the library.
   Exposed-modules:     Data.ByteArray
@@ -69,15 +65,3 @@ Library
 
   ghc-options: -Wall -funbox-strict-fields -O2
   
-Executable bench-bytearray
-  main-is: Benchmark.hs
-  hs-source-dirs: tests .
-  ghc-options: -Wall -funbox-strict-fields -O2
-
-  If flag(test)
-    Buildable: True
-    Build-depends:     base < 4.3, deepseq >= 1.1 && < 1.2,
-                       bytestring, criterion >= 0.4 && < 0.5,
-                       array >= 0.2 && < 0.4, storablevector >= 0.2 && < 0.3
-  Else
-    Buildable: False
