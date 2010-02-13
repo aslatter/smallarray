@@ -1,11 +1,12 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, BangPatterns #-}
 
 module Data.SmallArray.Internal where
 
 import Prelude hiding (length)
 import qualified Prelude
 
+import Control.Exception (assert)
 import Control.Monad.ST
 
 import qualified Data.ByteArray as B
@@ -85,6 +86,12 @@ unsafeFreeze (M n marr) = A n `fmap` B.unsafeFreeze marr
 run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
 
+run2 :: (forall s . ST s (MArray s e, a)) -> (Array e, a)
+run2 act = runST $ do
+             (marr, a) <- act
+             arr <- unsafeFreeze marr
+             return (arr, a)
+
 empty :: Elt e => Array e
 empty = run $ unsafeNew 0
 
@@ -101,15 +108,53 @@ fromList xs
  where len = Prelude.length xs
 {-# INLINE fromList #-}
 
+-- | Copy an array in its entirety. The destination array must be at
+-- least as big as the source.
+copy :: Elt e => MArray s e     -- ^ source array
+     -> MArray s e              -- ^ destination array
+     -> ST s ()
+copy src dest
+    | length dest >= length src = copy_loop 0
+    | otherwise                 = fail "Data.Text.Array.copy: array too small"
+    where
+      len = length src
+      copy_loop i
+          | i >= len  = return ()
+          | otherwise = do unsafeRead src i >>= unsafeWrite dest i
+                           copy_loop (i+1)
+{-# INLINE copy #-}
+
+-- | Unsafely copy the elements of an array.
+unsafeCopy :: Elt e =>
+              MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
+unsafeCopy src sidx dest didx count =
+    assert (sidx + count <= length src) .
+    assert (didx + count <= length dest) $
+    copy_loop sidx didx 0
+    where
+      copy_loop !i !j !c
+          | c >= count  = return ()
+          | otherwise = do unsafeRead src i >>= unsafeWrite dest j
+                           copy_loop (i+1) (j+1) (c+1)
+{-# INLINE unsafeCopy #-}
+
+
 class B.Elt e => Elt e where
+    -- |Retrieve an element in an array at the specified
+    -- location. Array indices start at zero.
     index :: Array e -> Int -> e
     index a n = check "index" a n unsafeIndex
     {-# INLINE index #-}
 
+    -- |Retrieve an element from a mutable array at the
+    -- specified location. Array indices start at zero.
     read :: MArray s e -> Int -> ST s e
     read a n = check "read" a n unsafeRead
     {-# INLINE read #-}
 
+    -- |Write an element to a mutable array at
+    -- the specified location. Array indices start
+    -- at zero.
     write :: MArray s e -> Int -> e -> ST s ()
     write a n = check "write" a n unsafeWrite
     {-# INLINE write #-}

@@ -13,7 +13,9 @@ module Data.SmallArray
     , empty
     , new
     , run
+    , run2
     , fromList
+    , copy
 
     -- * Unpacking
     , toList
