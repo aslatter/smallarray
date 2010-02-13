@@ -1,0 +1,12 @@
+
+To run the benchmarking suite:
+
+sh inplace.sh
+sh bench.sh
+
+The benchmark expects the following libraries:
+
+bytestring
+containers
+storablevector
+criterion
