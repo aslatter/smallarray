@@ -34,9 +34,12 @@ instance (Show e, Elt e) => Show (Array e) where
     show = show . toList
 
 instance (Eq a, Elt a) => Eq (Array a) where
-    a@(A an _) == b@(A bn _)
-        | an == bn = and $ [unsafeIndex a n == unsafeIndex b n | n <- [0..bn-1] ]
-        | otherwise = False
+    (==) = eqArray
+
+eqArray :: (Eq a, Elt a) => Array a -> Array a -> Bool
+eqArray a@(A an _) b@(A bn _)
+        = an == bn && and [unsafeIndex a n == unsafeIndex b n | n <- [0..bn-1] ]
+{-# INLINE eqArray #-}
 
 instance (Ord a, Elt a) => Ord (Array a) where
     a `compare` b
@@ -139,7 +142,7 @@ unsafeCopy src sidx dest didx count =
 {-# INLINE unsafeCopy #-}
 
 
-class B.Elt e => Elt e where
+class Elt e where
     -- |Retrieve an element in an array at the specified
     -- location. Array indices start at zero.
     index :: Array e -> Int -> e
