@@ -62,14 +62,21 @@ instance (Ord a, Elt a) => Ord (Array a) where
 
 class IArray a where
     length :: a -> Int
+    {-# INLINE length #-}
 
 instance IArray (Array a) where
-    length (A n _) = n
-    {-# INLINE length #-}
+    length = arrayLen
+
+arrayLen :: Array a -> Int
+arrayLen (A n _) = n
+{-# INLINE arrayLen #-}
 
 instance IArray (MArray s a) where
-    length (M n _) = n
-    {-# INLINE length #-}
+    length = marrayLen
+
+marrayLen :: MArray s a -> Int
+marrayLen (M n _) = n
+{-# INLINE marrayLen #-}
 
 unsafeNew :: Elt e => Int -> ST s (MArray s e)
 unsafeNew n = f undefined
