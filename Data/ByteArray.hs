@@ -19,12 +19,11 @@ So don't.
 
 In summary: This is a portable, low-level type for building higher-level, safe types.
 
-You may be thinking to yourself: \"Self, this looks a lot like a foreign pointer from
-the FFI. Why should I use this?\"
-Haskell implementations may implement raw memory buffers that are faster than FFI
-foreign pointer access.
-This library takes care of figuring that out for you, and falling back to FFI foreign
-pointers when we can't - so your library can be portable.
+When compiling with GHC, the ByteArray type is a wrapper around GHC.Prim.ByteArray#.
+Otherwise it's a thin wrapper arounf the FFI ForeignPtr.
+
+You get the benifit of using the fastest unboxed primitive on your platform without
+worrying about the details.
 
 -}
 
@@ -89,11 +88,19 @@ unsafeFreeze :: MutableByteArray s -> ST s ByteArray
 {-# INLINE unsafeFreeze #-}
 
 class Elt a where
+    -- | Read a primitve element from a mutable byte array.
+    -- The index is positon, not bytes.
     read     :: MutableByteArray s -> Int -> ST s a
+
+    -- | Write to a location in a mutable byte array.
+    -- The index is position, not bytes.
     write    :: MutableByteArray s -> Int -> a -> ST s ()
+
+    -- | Read from a location in a byte array.
+    -- The index is position, not bytes.
     index    :: ByteArray -> Int -> a
 
-    -- | The size of an element in bytes
+    -- | The size of an element in bytes.
     elemSize :: a -> Int
 
 -- | Only for use with pinned arrays.

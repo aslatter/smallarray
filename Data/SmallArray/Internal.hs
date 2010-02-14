@@ -149,7 +149,7 @@ copy :: Elt e => MArray s e     -- ^ source array
      -> ST s ()
 copy src dest
     | length dest >= length src = copy_loop 0
-    | otherwise                 = fail "Data.Text.Array.copy: array too small"
+    | otherwise                 = fail "Data.SmallArray.copy: array too small"
     where
       len = length src
       copy_loop i

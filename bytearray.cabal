@@ -13,7 +13,8 @@ Version:             0.0.1
 Synopsis:            low-level unboxed arrays
 
 -- A longer description of the package.
--- Description:         
+Description:         This package includes low-level, portable uboxed array types
+                     as well as a safe, minimal unboxed array library.
 
 -- URL for the project homepage or repository.
 Homepage:            http://community.haskell.org/~aslatter/code/bytearray
@@ -32,7 +33,7 @@ Author:              Antoine Latter
 Maintainer:          aslatter@gmail.com
 
 -- A copyright notice.
--- Copyright:           
+Copyright:           Antoine Latter, 2010
 
 -- Stability of the pakcage (experimental, provisional, stable...)
 Stability:           Experimental
