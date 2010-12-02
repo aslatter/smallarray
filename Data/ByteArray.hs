@@ -32,6 +32,8 @@ module Data.ByteArray
     , MutableByteArray
     , new
     , newPinned
+    , length
+    , lengthM
     , Elt(..)
     , unsafeFreeze
     , asPtr
@@ -57,17 +59,30 @@ import GHC.Word (Word8(..), Word16(..), Word32(..), Word64(..))
 import Foreign hiding (new)
 #endif
 
+import Prelude hiding (length)
 import Control.Monad.ST
-
 import Control.DeepSeq
 
 #if defined(USING_GHC)
+
+#if __GLASGOW_HASKELL__ > 612
+#ifndef TESTING_LENGTH
+#define HAS_LENGTH
+#endif
+#endif
+
+#ifdef HAS_LENGTH
 data ByteArray = ByteArray {unArray :: !ByteArray# }
 data MutableByteArray s = MutableByteArray {unMArray :: !(MutableByteArray# s)}
 #else
+data ByteArray = ByteArray {unArray :: !ByteArray#, length :: {-# UNPACK #-}!Int }
+data MutableByteArray s = MutableByteArray {unMArray :: !(MutableByteArray# s), lengthM :: {-# UNPACK #-}!Int}
+#endif
+
+#else
 -- fallback to FFI foreign pointers
-newtype ByteArray = ByteArray (ForeignPtr Word8)
-newtype MutableByteArray s = MutableByteArray (ForeignPtr Word8)
+data ByteArray = ByteArray {-# UNPACK #-} !(ForeignPtr Word8) {-# UNPACK #-} !Int
+data MutableByteArray s = MutableByteArray {-# UNPACK #-} !(ForeignPtr Word8) {-# UNPACK #-} !Int
 #endif
 
 instance NFData ByteArray where
@@ -86,6 +101,11 @@ newPinned :: Int -> ST s (MutableByteArray s)
 -- not modify the source array after calling this.
 unsafeFreeze :: MutableByteArray s -> ST s ByteArray
 {-# INLINE unsafeFreeze #-}
+
+length :: ByteArray -> Int
+lengthM :: MutableByteArray s -> Int
+{-# INLINE length #-}
+{-# INLINE lengthM #-}
 
 class Elt a where
     -- | Read a primitve element from a mutable byte array.
@@ -108,6 +128,7 @@ asPtr :: ByteArray -> (Ptr a -> IO b) -> IO b
 
 #if defined(USING_GHC)
 
+#ifdef HAS_LENGTH
 new (I# n#)
     = ST $ \s -> case newByteArray# n# s of
                    (# s', ary #) -> (# s', MutableByteArray ary #)
@@ -119,8 +140,24 @@ unsafeFreeze (MutableByteArray mary)
     = ST $ \s -> case unsafeFreezeByteArray# mary s of
                    (# s', ary #) -> (# s', ByteArray ary #)
 
-asPtr a@(ByteArray ary) k
-    = case byteArrayContents# ary of
+length (ByteArray ary) = I# (sizeofByteArray# ary)
+lengthM (MutableByteArray mary) = I# (sizeofMutableByteArray# mary)
+
+#else
+new n@(I# n#)
+    = ST $ \s -> case newByteArray# n# s of
+                   (# s', ary #) -> (# s', MutableByteArray ary n #)
+newPinned n@(I# n#)
+    = ST $ \s -> case newPinnedByteArray# n# s of
+                   (# s', ary #) -> (# s', MutableByteArray ary n #)
+
+unsafeFreeze (MutableByteArray mary n)
+    = ST $ \s -> case unsafeFreezeByteArray# mary s of
+                   (# s', ary #) -> (# s', ByteArray ary n #)
+#endif
+
+asPtr a k
+    = case byteArrayContents# (unArray a) of
         addr# -> do
           x <- k $ Ptr addr#
           touch a
@@ -162,16 +199,19 @@ deriveElt(Char, C#, readWideCharArray#, writeWideCharArray#, indexWideCharArray#
 withMArrayPtr :: MutableByteArray s -> (Ptr a -> IO b) -> IO b
 withArrayPtr  :: ByteArray -> (Ptr a -> IO b) -> IO b
 
-withMArrayPtr (MutableByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
-withArrayPtr (ByteArray fptr) k = withForeignPtr (castForeignPtr fptr) k
+withMArrayPtr (MutableByteArray fptr _) k = withForeignPtr (castForeignPtr fptr) k
+withArrayPtr (ByteArray fptr _) k = withForeignPtr (castForeignPtr fptr) k
 
-new n = unsafeIOToST $ MutableByteArray `fmap` mallocForeignPtrBytes n
+new n = unsafeIOToST $ flip MutableByteArray n `fmap` mallocForeignPtrBytes n
 newPinned = new -- FFI arrays already pinned
 
-unsafeFreeze (MutableByteArray fptr)
-    = return . ByteArray $ fptr
+unsafeFreeze (MutableByteArray fptr n)
+    = return . flip ByteArray n $ fptr
 
 asPtr = withArrayPtr
+
+length (ByteArray _ n) = n
+lengthM (MutableByteArray _ n) = n
 
 #define deriveElt(Typ) \
 instance Elt Typ where { \

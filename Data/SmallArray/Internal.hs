@@ -39,18 +39,17 @@ import Data.Word
 
 import Control.DeepSeq
 
-data Array a
-    = A {-# UNPACK #-}!Int
-        {-# UNPACK #-}!ByteArray
-data MArray s a
-    = M {-# UNPACK #-}!Int
-        {-# UNPACK #-}!(MutableByteArray s)
+newtype Array a
+    = A ByteArray
+
+newtype MArray s a
+    = M (MutableByteArray s)
 
 instance NFData (Array a) where
-    rnf (A _ ary) = rnf ary
+    rnf (A ary) = rnf ary
 
 instance NFData (MArray s a) where
-    rnf (M _ ary) = rnf ary
+    rnf (M ary) = rnf ary
 
 instance (Show e, Elt e) => Show (Array e) where
     show = show . toList
@@ -59,8 +58,11 @@ instance (Eq a, Elt a) => Eq (Array a) where
     (==) = eqArray
 
 eqArray :: (Eq a, Elt a) => Array a -> Array a -> Bool
-eqArray a@(A an _) b@(A bn _)
-        = an == bn && and [unsafeIndex a n == unsafeIndex b n | n <- [0..bn-1] ]
+eqArray a b
+        = let an = length a
+              bn = length b
+          in
+            an == bn && and [unsafeIndex a n == unsafeIndex b n | n <- [0..bn-1] ]
 {-# INLINE eqArray #-}
 
 instance (Ord a, Elt a) => Ord (Array a) where
@@ -87,24 +89,32 @@ class IArray a where
     length :: a -> Int
     {-# INLINE length #-}
 
-instance IArray (Array a) where
+instance Elt a => IArray (Array a) where
     length = arrayLen
 
-arrayLen :: Array a -> Int
-arrayLen (A n _) = n
+arrayLen :: Elt a => Array a -> Int
+arrayLen a@(A arr)
+    = len undefined a arr
+ where
+   len :: Elt e => e -> Array e -> ByteArray -> Int
+   len elem _ bytes = B.length bytes `div` bytesInArray 1 elem
 {-# INLINE arrayLen #-}
 
-instance IArray (MArray s a) where
+instance Elt a => IArray (MArray s a) where
     length = marrayLen
 
-marrayLen :: MArray s a -> Int
-marrayLen (M n _) = n
+marrayLen :: Elt a => MArray s a -> Int
+marrayLen a@(M arr)
+    = len undefined a arr
+ where
+   len :: Elt e => e -> MArray s e -> MutableByteArray s -> Int
+   len elem _ bytes = B.lengthM bytes `div` bytesInArray 1 elem
 {-# INLINE marrayLen #-}
 
 unsafeNew :: Elt e => Int -> ST s (MArray s e)
 unsafeNew n = f undefined
    where f :: Elt e => e -> ST s (MArray s e)
-         f e = M n `fmap` B.new (bytesInArray n e)
+         f e = M `fmap` B.new (bytesInArray n e)
 {-# INLINE unsafeNew #-}
 
 new :: Elt e => Int -> e -> ST s (MArray s e)
@@ -114,7 +124,7 @@ new n e = do
   return arr
 
 unsafeFreeze :: MArray s e -> ST s (Array e)
-unsafeFreeze (M n marr) = A n `fmap` B.unsafeFreeze marr 
+unsafeFreeze (M marr) = A `fmap` B.unsafeFreeze marr 
 {-# INLINE unsafeFreeze #-}
 
 run :: (forall s . ST s (MArray s e)) -> Array e
@@ -209,11 +219,11 @@ check func ary i f
 instance Elt Typ where { \
    bytesInArray sz el = B.elemSize el * sz      \
 ;  {-# INLINE bytesInArray #-} \
-;  unsafeIndex (A _ arr) n   = B.index arr n    \
+;  unsafeIndex (A arr) n   = B.index arr n    \
 ;  {-# INLINE unsafeIndex #-} \
-;  unsafeRead  (M _ arr) n   = B.read  arr n    \
+;  unsafeRead  (M arr) n   = B.read  arr n    \
 ;  {-# INLINE unsafeRead #-} \
-;  unsafeWrite (M _ arr) n x = B.write arr n x  \
+;  unsafeWrite (M arr) n x = B.write arr n x  \
 ;  {-# INLINE unsafeWrite #-} \
 } \
 
