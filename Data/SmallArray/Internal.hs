@@ -97,7 +97,7 @@ arrayLen a@(A arr)
     = len undefined a arr
  where
    len :: Elt e => e -> Array e -> ByteArray -> Int
-   len elem _ bytes = B.length bytes `div` bytesInArray 1 elem
+   len elem _ bytes = B.length bytes `div` elemSize elem
 {-# INLINE arrayLen #-}
 
 instance Elt a => IArray (MArray s a) where
@@ -108,7 +108,7 @@ marrayLen a@(M arr)
     = len undefined a arr
  where
    len :: Elt e => e -> MArray s e -> MutableByteArray s -> Int
-   len elem _ bytes = B.lengthM bytes `div` bytesInArray 1 elem
+   len elem _ bytes = B.lengthM bytes `div` elemSize elem
 {-# INLINE marrayLen #-}
 
 unsafeNew :: Elt e => Int -> ST s (MArray s e)
@@ -204,10 +204,14 @@ class Elt e where
     write a n = check "write" a n unsafeWrite
     {-# INLINE write #-}
 
-    bytesInArray :: Int -> e -> Int
+    -- | Size of the element in bytes
+    elemSize :: e -> Int
     unsafeIndex :: Array e -> Int -> e
     unsafeRead :: MArray s e -> Int -> ST s e
     unsafeWrite :: MArray s e -> Int -> e -> ST s ()
+
+bytesInArray :: Elt e => Int -> e -> Int
+bytesInArray sz el = elemSize el * sz
 
 check :: IArray a => String -> a -> Int -> (a -> Int -> b) -> b
 check func ary i f
@@ -217,8 +221,8 @@ check func ary i f
 
 #define deriveElt(Typ) \
 instance Elt Typ where { \
-   bytesInArray sz el = B.elemSize el * sz      \
-;  {-# INLINE bytesInArray #-} \
+   elemSize = B.elemSize                     \
+;  {-# INLINE elemSize #-} \
 ;  unsafeIndex (A arr) n   = B.index arr n    \
 ;  {-# INLINE unsafeIndex #-} \
 ;  unsafeRead  (M arr) n   = B.read  arr n    \
