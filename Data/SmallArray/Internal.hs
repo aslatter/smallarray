@@ -55,6 +55,7 @@ instance (Show e, Elt e) => Show (Array e) where
     show = show . toList
 
 instance (Eq a, Elt a) => Eq (Array a) where
+    {-# SPECIALIZE instance Eq (Array Word8) #-}
     (==) = eqArray
 
 eqArray :: (Eq a, Elt a) => Array a -> Array a -> Bool
@@ -66,6 +67,7 @@ eqArray a b
 {-# INLINE eqArray #-}
 
 instance (Ord a, Elt a) => Ord (Array a) where
+    {-# SPECIALIZE instance Ord (Array Word8) #-}
     a `compare` b
         = f 0
 
