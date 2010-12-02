@@ -7,8 +7,6 @@
 #endif
 #endif
 
-
-
 {-|
 
 This is not a safe data structure - you can do very bad things, and array bounds are
@@ -64,7 +62,10 @@ import Control.Monad.ST
 import Control.DeepSeq
 
 #if defined(USING_GHC)
-
+-- in GHC prior to 7, the built-in length primitive on ByteArrays would
+-- round up to the nearest 4-byte word. After it returns the amount request
+-- during allocation, which is what we want.
+-- Prior to GHC 7 we carry around a length.
 #if __GLASGOW_HASKELL__ > 612
 #ifndef TESTING_LENGTH
 #define HAS_LENGTH

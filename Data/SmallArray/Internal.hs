@@ -25,7 +25,7 @@
 -- naming.
 module Data.SmallArray.Internal where
 
-import Prelude hiding (length)
+import Prelude hiding (length, elem)
 import qualified Prelude
 
 import Control.Exception (assert)
@@ -39,9 +39,11 @@ import Data.Word
 
 import Control.DeepSeq
 
+-- | A simple array. Indexing starts from zero.
 newtype Array a
     = A ByteArray
 
+-- | A simple mutable array. Indexing starts from zero.
 newtype MArray s a
     = M (MutableByteArray s)
 
@@ -88,6 +90,7 @@ instance (Ord a, Elt a) => Ord (Array a) where
     {-# INLINE compare #-}
 
 class IArray a where
+    -- | Return the length of an array.
     length :: a -> Int
     {-# INLINE length #-}
 
@@ -113,12 +116,15 @@ marrayLen a@(M arr)
    len elem _ bytes = B.lengthM bytes `div` elemSize elem
 {-# INLINE marrayLen #-}
 
+-- | Create a new array. The contents are not initialized in any way, and
+-- may be invalid.
 unsafeNew :: Elt e => Int -> ST s (MArray s e)
 unsafeNew n = f undefined
    where f :: Elt e => e -> ST s (MArray s e)
          f e = M `fmap` B.new (bytesInArray n e)
 {-# INLINE unsafeNew #-}
 
+-- | Create a new array with the specified default value.
 new :: Elt e => Int -> e -> ST s (MArray s e)
 new n e = do
   arr <- unsafeNew n
@@ -129,23 +135,28 @@ unsafeFreeze :: MArray s e -> ST s (Array e)
 unsafeFreeze (M marr) = A `fmap` B.unsafeFreeze marr 
 {-# INLINE unsafeFreeze #-}
 
+-- | Execute an action creating a mutable array, and return the resulting
+-- equivalent pure array. No copy is performed.
 run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
 {-# INLINE run #-}
 
-run2 :: (forall s . ST s (MArray s e, a)) -> (Array e, a)
-run2 act = runST $ do
+run' :: (forall s . ST s (MArray s e, a)) -> (Array e, a)
+run' act = runST $ do
              (marr, a) <- act
              arr <- unsafeFreeze marr
              return (arr, a)
 
+-- | The empty array
 empty :: Elt e => Array e
 empty = run $ unsafeNew 0
 
+-- | Output the array to a list.
 toList :: Elt e => Array e -> [e]
 toList arr = [arr `unsafeIndex` n | n <- [0 .. length arr - 1]]
 {-# INLINE toList #-}
 
+-- | Create an array from a list.
 fromList :: Elt e => [e] -> Array e
 fromList xs
     = run $ do
@@ -171,7 +182,7 @@ copy src dest
                            copy_loop (i+1)
 {-# INLINE copy #-}
 
--- | Unsafely copy the elements of an array.
+-- | Unsafely copy the elements of an array. Array bounds are not checked.
 unsafeCopy :: Elt e =>
               MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
 unsafeCopy src sidx dest didx count =
@@ -208,6 +219,7 @@ class Elt e where
 
     -- | Size of the element in bytes
     elemSize :: e -> Int
+
     unsafeIndex :: Array e -> Int -> e
     unsafeRead :: MArray s e -> Int -> ST s e
     unsafeWrite :: MArray s e -> Int -> e -> ST s ()

@@ -23,16 +23,16 @@
 module Data.SmallArray
     (
     -- * Array types
-      IArray(..)
-    , Elt(read, write, index)
-    , Array
+      Array
     , MArray
+    , IArray(..)
+    , Elt(read, write, index)
 
     -- * Creation
     , empty
     , new
     , run
-    , run2
+    , run'
     , fromList
     , copy
 
