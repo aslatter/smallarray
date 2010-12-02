@@ -81,6 +81,7 @@ instance (Ord a, Elt a) => Ord (Array a) where
                    = LT
                | otherwise
                    = EQ
+    {-# INLINE compare #-}
 
 class IArray a where
     length :: a -> Int
