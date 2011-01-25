@@ -66,7 +66,7 @@ import qualified Data.Hashable as H
 
 #if defined(USING_GHC)
 -- in GHC prior to 7, the built-in length primitive on ByteArrays would
--- round up to the nearest 4-byte word. After it returns the amount request
+-- round up to the nearest 4-byte word. After v7 it returns the amount requested
 -- during allocation, which is what we want.
 -- Prior to GHC 7 we carry around a length.
 #if __GLASGOW_HASKELL__ > 612
@@ -129,6 +129,12 @@ class Elt a where
 
 -- | Only for use with pinned arrays.
 asPtr :: ByteArray -> (Ptr a -> IO b) -> IO b
+
+-- | Hash the contents of the ByteArray
+hashByteArray :: ByteArray -> Int
+
+-- other hashing functions can be easily provided, say
+-- hashing a part of the array or incremental hashing
 
 #if defined(USING_GHC)
 
