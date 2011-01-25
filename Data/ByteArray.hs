@@ -62,6 +62,7 @@ import Prelude hiding (length)
 import Control.Monad.ST
 import Control.DeepSeq
 
+import Data.ByteString.Internal (inlinePerformIO)
 import qualified Data.Hashable as H
 
 #if defined(USING_GHC)
@@ -226,7 +227,7 @@ length (ByteArray _ n) = n
 lengthM (MutableByteArray _ n) = n
 
 hashByteArray arr =
-    unsafePerformIO $
+    inlinePerformIO $
     withArrayPtr arr $ \ptr ->
     H.hashPtr ptr (length arr)
 
