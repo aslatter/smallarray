@@ -3,7 +3,7 @@ Name:                smallarray
 -- See the Haskell package versioning policy
 -- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
 -- standards guiding when and how versions should be incremented.
-Version:             0.2.0
+Version:             0.2.1
 
 Synopsis:            low-level unboxed arrays, with minimal features.
 
