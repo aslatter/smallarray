@@ -228,7 +228,7 @@ lengthM (MutableByteArray _ n) = n
 hashByteArray arr =
     unsafePerformIO $
     withArrayPtr arr $ \ptr ->
-    H.hashPtr ptr 0 (length arr)
+    H.hashPtr ptr (length arr)
 
 #define deriveElt(Typ) \
 instance Elt Typ where { \
