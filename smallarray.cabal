@@ -3,7 +3,7 @@ Name:                smallarray
 -- See the Haskell package versioning policy
 -- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
 -- standards guiding when and how versions should be incremented.
-Version:             0.1.0
+Version:             0.2.0
 
 Synopsis:            low-level unboxed arrays, with minimal features.
 
@@ -43,5 +43,5 @@ Library
   Other-modules:       Data.ByteArray
                        Data.SmallArray.Internal
   
-  Build-depends:       base < 4.4, deepseq >= 1.1 && < 1.2
+  Build-depends:       base < 4.4, deepseq >= 1.1 && < 1.2, hashable < 1.1 && >= 1.0.1
   ghc-options: -Wall -funbox-strict-fields -O2

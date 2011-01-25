@@ -35,6 +35,7 @@ module Data.ByteArray
     , Elt(..)
     , unsafeFreeze
     , asPtr
+    , hashByteArray
     ) where
 
 
@@ -60,6 +61,8 @@ import Foreign hiding (new)
 import Prelude hiding (length)
 import Control.Monad.ST
 import Control.DeepSeq
+
+import qualified Data.Hashable as H
 
 #if defined(USING_GHC)
 -- in GHC prior to 7, the built-in length primitive on ByteArrays would
@@ -167,6 +170,8 @@ asPtr a k
 touch :: a -> IO ()
 touch x = IO $ \s-> case touch# x s of s' -> (# s', () #)
 
+hashByteArray arr = H.hashByteArray (unArray arr) 0 (length arr)
+
 #define deriveElt(Typ, Ct, rd, wrt, ix, sz) \
 instance Elt Typ where { \
     read ary (I# n) = ST (\s -> case rd (unMArray ary) n s of \
@@ -213,6 +218,11 @@ asPtr = withArrayPtr
 
 length (ByteArray _ n) = n
 lengthM (MutableByteArray _ n) = n
+
+hashByteArray arr =
+    unsafePerformIO $
+    withArrayPtr arr $ \ptr ->
+    H.hashPtr ptr 0 (length arr)
 
 #define deriveElt(Typ) \
 instance Elt Typ where { \

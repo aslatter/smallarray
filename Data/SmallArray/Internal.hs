@@ -38,6 +38,7 @@ import Data.Int
 import Data.Word
 
 import Control.DeepSeq
+import qualified Data.Hashable as H
 
 -- | A simple array. Indexing starts from zero.
 newtype Array a
@@ -59,6 +60,9 @@ instance (Show e, Elt e) => Show (Array e) where
 instance (Eq a, Elt a) => Eq (Array a) where
     {-# SPECIALIZE instance Eq (Array Word8) #-}
     (==) = eqArray
+
+instance H.Hashable (Array a) where
+    hash (A bArr) = B.hashByteArray bArr
 
 eqArray :: (Eq a, Elt a) => Array a -> Array a -> Bool
 eqArray a b
