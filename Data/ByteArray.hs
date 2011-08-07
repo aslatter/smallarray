@@ -178,6 +178,7 @@ touch :: a -> IO ()
 touch x = IO $ \s-> case touch# x s of s' -> (# s', () #)
 
 hashByteArray arr = H.hashByteArray (unArray arr) 0 (length arr)
+{-# INLINE hashByteArray #-}
 
 #define deriveElt(Typ, Ct, rd, wrt, ix, sz) \
 instance Elt Typ where { \
@@ -237,7 +238,7 @@ instance Elt Typ where { \
         = unsafeIOToST $ withMArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
 ;   write ary ndx word \
         = unsafeIOToST $ withMArrayPtr ary $ \ptr -> pokeElemOff ptr ndx word \
-;   index ary ndx = unsafePerformIO $ withArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
+;   index ary ndx = inlinePerformIO $ withArrayPtr ary $ \ptr -> peekElemOff ptr ndx \
 ;   elemSize = sizeOf \
 }
 

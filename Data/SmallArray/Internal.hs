@@ -63,6 +63,7 @@ instance (Eq a, Elt a) => Eq (Array a) where
 
 instance H.Hashable (Array a) where
     hash (A bArr) = B.hashByteArray bArr
+    {-# INLINE hash #-}
 
 eqArray :: (Eq a, Elt a) => Array a -> Array a -> Bool
 eqArray a b
