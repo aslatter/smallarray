@@ -97,10 +97,10 @@ instance (Ord a, Elt a) => Ord (Array a) where
 class IArray a where
     -- | Return the length of an array.
     length :: a -> Int
-    {-# INLINE length #-}
 
 instance Elt a => IArray (Array a) where
     length = arrayLen
+    {-# INLINE length #-}
 
 arrayLen :: Elt a => Array a -> Int
 arrayLen a@(A arr)
@@ -112,6 +112,7 @@ arrayLen a@(A arr)
 
 instance Elt a => IArray (MArray s a) where
     length = marrayLen
+    {-# INLINE length #-}
 
 marrayLen :: Elt a => MArray s a -> Int
 marrayLen a@(M arr)
