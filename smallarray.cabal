@@ -35,6 +35,8 @@ Build-type:          Simple
 
 Cabal-version:       >=1.6
 
+Extra-source-files:  CHANGELOG
+
 Source-repository head
   Type:     darcs
   Location: http://community.haskell.org/~aslatter/code/bytearray

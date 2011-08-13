@@ -1,0 +1,19 @@
+
+0.2.2.2
+
+* Change how INLINE pragmas are used so that we compile with GHC 7.2
+
+0.2.2.1
+
+* Relax requirement on 'base' package version
+* Clean up package description
+* Clean up benchmarking scripts
+* Small performance tweaks
+
+0.2.1
+
+* Fix Hashable instance for FFI-version
+
+0.2.0
+
+* Add instance for Hashable
