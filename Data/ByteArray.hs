@@ -56,13 +56,13 @@ import GHC.Word (Word8(..), Word16(..), Word32(..), Word64(..))
 
 #else
 import Foreign hiding (new)
+import Data.ByteString.Internal (inlinePerformIO)
 #endif
 
 import Prelude hiding (length)
 import Control.Monad.ST
 import Control.DeepSeq
 
-import Data.ByteString.Internal (inlinePerformIO)
 import qualified Data.Hashable as H
 
 #if defined(USING_GHC)
